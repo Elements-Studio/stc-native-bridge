@@ -31,7 +31,8 @@
 
 use crate::api::{mark_quota_stale, update_fee_cache_async};
 use crate::handlers::{
-    BRIDGE, TOKEN_DEPOSITED_EVENT, TOKEN_TRANSFER_APPROVED, TOKEN_TRANSFER_CLAIMED,
+    BRIDGE, LIMITER, TOKEN_DEPOSITED_EVENT, TOKEN_TRANSFER_APPROVED, TOKEN_TRANSFER_CLAIMED,
+    UPDATE_ROUTE_LIMIT_EVENT,
 };
 use crate::indexer_progress::{IndexerProgressStore, STC_INDEXER_TASK_NAME};
 use crate::metrics::BridgeIndexerMetrics;
@@ -47,6 +48,7 @@ use move_core_types::language_storage::StructTag;
 use starcoin_bridge::chain_syncer::common::{ChainLog, SyncerEvent};
 use starcoin_bridge::events::{
     MoveTokenDepositedEvent, MoveTokenTransferApproved, MoveTokenTransferClaimed,
+    UpdateRouteLimitEvent,
 };
 use starcoin_bridge::pending_events::{
     ApprovalEvent, ChainId, ClaimEvent, DepositEvent, PendingEvent, PendingEventType,
@@ -101,6 +103,7 @@ pub struct StcEventHandler {
     deposited_event_type: StructTag,
     approved_event_type: StructTag,
     claimed_event_type: StructTag,
+    update_route_limit_event_type: StructTag,
     starcoin_rpc_url: String,
     eth_rpc_url: String,
     progress_store: IndexerProgressStore,
@@ -135,6 +138,7 @@ impl StcEventHandler {
             deposited_event_type: struct_tag!(bridge_address, BRIDGE, TOKEN_DEPOSITED_EVENT),
             approved_event_type: struct_tag!(bridge_address, BRIDGE, TOKEN_TRANSFER_APPROVED),
             claimed_event_type: struct_tag!(bridge_address, BRIDGE, TOKEN_TRANSFER_CLAIMED),
+            update_route_limit_event_type: struct_tag!(bridge_address, LIMITER, UPDATE_ROUTE_LIMIT_EVENT),
             starcoin_rpc_url,
             eth_rpc_url,
             progress_store,
@@ -521,6 +525,15 @@ impl StcEventHandler {
                 tx_hash,
                 block_number: block_height,
             })
+        } else if event_type == self.update_route_limit_event_type {
+            let event: UpdateRouteLimitEvent = bcs::from_bytes(&log.data).ok()?;
+            Some(BridgeNotifyEvent::LimitUpdated {
+                source_chain_id: event.sending_chain,
+                new_limit: event.new_limit,
+                nonce: 0, // Move event does not have nonce
+                tx_hash,
+                block_number: block_height,
+            })
         } else {
             None
         }
@@ -694,6 +707,17 @@ impl StcEventHandler {
                 self.eth_rpc_url.clone(),
                 self.starcoin_rpc_url.clone(),
             );
+        } else if event_type == self.update_route_limit_event_type {
+            let event: UpdateRouteLimitEvent = bcs::from_bytes(&log.data)?;
+
+            info!(
+                "[StcEventHandler] Processing FINALIZED UpdateRouteLimitEvent at block {}: \
+                sending_chain={}, receiving_chain={}, new_limit={}",
+                block_height, event.sending_chain, event.receiving_chain, event.new_limit
+            );
+
+            // Mark quota cache stale so next /quota query re-fetches from chain
+            mark_quota_stale();
         }
 
         Ok(())

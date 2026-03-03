@@ -6,10 +6,10 @@
 //! This module implements a cache for bridge quota values that:
 //! - Returns cached values immediately when cache is fresh
 //! - Coalesces concurrent requests when cache is stale (singleflight)
-//! - Refreshes when transfer events occur
+//! - Refreshes when transfer events or limit update events occur (finalized)
 //!
 //! Global access is provided via `get_global_quota_cache()` for use by
-//! event handlers to mark the cache as stale when transfers occur.
+//! event handlers to mark the cache as stale when transfers or limit updates occur.
 
 use crate::api::types::{BigIntValue, QuotaResponse};
 use ethers::prelude::Middleware;
@@ -192,11 +192,11 @@ impl QuotaCache {
         }
     }
 
-    /// Mark cache as stale, typically called when a transfer event is processed
+    /// Mark cache as stale, typically called when a transfer event or limit update event is finalized
     pub fn mark_stale(&self) {
         let was_fresh = !self.is_stale.swap(true, Ordering::Release);
         if was_fresh {
-            debug!("Quota cache marked stale due to transfer event");
+            debug!("Quota cache marked stale");
         }
     }
 
@@ -533,7 +533,7 @@ mod tests {
     async fn test_global_quota_cache() {
         // Test initialization
         let cache1 = init_global_quota_cache();
-        let cache2 = get_global_quota_cache().expect("Cache should be initialized");
+        let cache2: Arc<QuotaCache> = get_global_quota_cache().expect("Cache should be initialized");
 
         // Should be the same instance
         assert!(Arc::ptr_eq(&cache1, &cache2));

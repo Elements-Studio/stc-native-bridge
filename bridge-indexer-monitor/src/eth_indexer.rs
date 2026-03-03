@@ -728,8 +728,31 @@ async fn process_eth_log_to_db(log: &EthLog, db: &Db, eth_rpc_url: &str) -> Resu
             process_bridge_event_finalized(bridge_event, log, timestamp_ms, &mut conn, eth_rpc_url)
                 .await?;
         }
+        EthBridgeEvent::EthBridgeLimiterEvents(limiter_event) => match limiter_event {
+            EthBridgeLimiterEvents::LimitUpdatedFilter(limit) => {
+                info!(
+                    "[ETH] Processing FINALIZED LimitUpdated event at block {}: \
+                    source_chain={}, new_limit={}",
+                    log.block_number, limit.source_chain_id, limit.new_limit
+                );
+                // Mark quota cache stale so next /quota query re-fetches from chain
+                mark_quota_stale();
+            }
+            EthBridgeLimiterEvents::LimitUpdatedV2Filter(limit) => {
+                info!(
+                    "[ETH] Processing FINALIZED LimitUpdatedV2 event at block {}: \
+                    nonce={}, source_chain={}, new_limit={}",
+                    log.block_number, limit.nonce, limit.source_chain_id, limit.new_limit
+                );
+                // Mark quota cache stale so next /quota query re-fetches from chain
+                mark_quota_stale();
+            }
+            _ => {
+                debug!("Received non-limit ETH limiter event");
+            }
+        },
         _ => {
-            debug!("Received non-bridge ETH event (committee/limiter/config)");
+            debug!("Received non-bridge ETH event (committee/config)");
         }
     }
 

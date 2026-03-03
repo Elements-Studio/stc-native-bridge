@@ -14,7 +14,7 @@ pub mod stc_event_handler;
 pub use stc_event_handler::{run_stc_event_handler, StcEventHandler, StcEventHandlerConfig};
 
 // Event type identifiers for Starcoin bridge contract
-pub const LIMITER: &IdentStr = ident_str!("limiter");
+pub const LIMITER: &IdentStr = ident_str!("Limiter");
 pub const BRIDGE: &IdentStr = ident_str!("Bridge");
 pub const COMMITTEE: &IdentStr = ident_str!("Committee");
 pub const TREASURY: &IdentStr = ident_str!("Treasury");
@@ -22,6 +22,7 @@ pub const TREASURY: &IdentStr = ident_str!("Treasury");
 pub const TOKEN_DEPOSITED_EVENT: &IdentStr = ident_str!("TokenDepositedEvent");
 pub const TOKEN_TRANSFER_APPROVED: &IdentStr = ident_str!("TokenTransferApproved");
 pub const TOKEN_TRANSFER_CLAIMED: &IdentStr = ident_str!("TokenTransferClaimed");
+pub const UPDATE_ROUTE_LIMIT_EVENT: &IdentStr = ident_str!("UpdateRouteLimitEvent");
 
 /// Macro to create a StructTag for event matching
 #[macro_export]
