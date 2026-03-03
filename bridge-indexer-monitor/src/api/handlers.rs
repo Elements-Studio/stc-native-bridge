@@ -41,11 +41,17 @@ fn format_usdt_amount(amount: i64) -> String {
     }
 }
 
-/// Format amount from u64 (bridge 8 decimals -> USDT 6 decimals display)
+/// Format amount from u64 for USDT (6 decimals, no adjustment needed).
+///
+/// For USDT, the bridge's `starcoinDecimal` equals the ERC20 decimal (both 6),
+/// so `convertERC20ToStarcoinDecimal` is a no-op and the event amount is already
+/// in 6-decimal precision — the same precision `format_usdt_amount` expects.
+///
+/// NOTE: If non-USDT tokens with different starcoin decimals (e.g. ETH/BTC with
+/// 8 decimals) are added in the future, this function must be updated to account
+/// for the per-token decimal difference.
 fn format_usdt_amount_u64(amount: u64) -> String {
-    // Convert from 8 decimals (bridge) to 6 decimals (display)
-    let display_amount = (amount / 100) as i64;
-    format_usdt_amount(display_amount)
+    format_usdt_amount(amount as i64)
 }
 
 /// Convert memory ChainId to API chain_id (i32) using network-aware bridge chain ID mapping
@@ -1356,7 +1362,7 @@ mod tests {
         let deposit = create_mem_deposit_info(
             "0xabc123",
             100,
-            100_000_000, // 1 USDT in 8 decimals
+            1_000_000, // 1 USDT in 6 decimals
             "0x1111",
             "0x2222",
         );
@@ -1601,13 +1607,18 @@ mod tests {
 
     #[test]
     fn test_format_usdt_amount_u64() {
-        // 1 USDT in 8 decimals = 100_000_000
-        assert_eq!(format_usdt_amount_u64(100_000_000), "1 USDT");
+        // For USDT, starcoinDecimal == erc20Decimal == 6, so the bridge event
+        // amount is already in 6-decimal precision (no adjustment).
+        // 1 USDT in 6 decimals = 1_000_000
+        assert_eq!(format_usdt_amount_u64(1_000_000), "1 USDT");
 
-        // 1.5 USDT in 8 decimals = 150_000_000
-        assert_eq!(format_usdt_amount_u64(150_000_000), "1.5 USDT");
+        // 1.5 USDT in 6 decimals = 1_500_000
+        assert_eq!(format_usdt_amount_u64(1_500_000), "1.5 USDT");
 
-        // 0.123456 USDT in 8 decimals = 12_345_600
-        assert_eq!(format_usdt_amount_u64(12_345_600), "0.123456 USDT");
+        // 0.123456 USDT in 6 decimals = 123_456
+        assert_eq!(format_usdt_amount_u64(123_456), "0.123456 USDT");
+
+        // 100 USDT in 6 decimals = 100_000_000
+        assert_eq!(format_usdt_amount_u64(100_000_000), "100 USDT");
     }
 }

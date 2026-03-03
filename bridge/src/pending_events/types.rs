@@ -152,7 +152,7 @@ pub struct DepositEvent {
     pub nonce: u64,
     /// Token ID
     pub token_id: u8,
-    /// Amount (bridge-adjusted, 8 decimals)
+    /// Amount (bridge-adjusted, same precision as token's starcoin decimals; 6 for USDT)
     pub amount: u64,
     /// Sender address (hex)
     pub sender_address: String,
