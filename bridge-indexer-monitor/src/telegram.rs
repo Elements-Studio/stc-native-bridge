@@ -20,9 +20,12 @@
 use anyhow::Result;
 use reqwest::Client;
 use serde_json::json;
+use starcoin_bridge::pending_events::TransferRecord;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{info, warn};
+
+use crate::network::NetworkType;
 
 const MAX_RETRIES: u32 = 3;
 const RETRY_DELAY_SECS: u64 = 2;
@@ -695,6 +698,74 @@ fn get_token_name(token_id: u8) -> &'static str {
         5 => "BTC",
         _ => "Unknown",
     }
+}
+
+/// Create BridgeNotifyEvent(s) from a finalized TransferRecord.
+///
+/// This is used by finalize_and_persist_records paths where events transition
+/// from unfinalized (memory) to finalized (DB), and we need to send
+/// telegram notifications that were deferred during the unfinalized phase.
+pub fn create_notify_events_from_record(
+    record: &TransferRecord,
+    network: NetworkType,
+) -> Vec<BridgeNotifyEvent> {
+    let mut events = Vec::new();
+    let source_chain_id = network.chain_id_to_bridge_i32(record.key.source_chain) as u8;
+
+    if let Some(ref deposit) = record.deposit {
+        let destination_chain_id =
+            network.chain_id_to_bridge_i32(deposit.destination_chain) as u8;
+        events.push(BridgeNotifyEvent::Deposit {
+            source_chain_id,
+            destination_chain_id,
+            nonce: record.key.nonce,
+            token_id: deposit.token_id,
+            amount: deposit.amount,
+            sender_address: deposit.sender_address.clone(),
+            recipient_address: deposit.recipient_address.clone(),
+            tx_hash: deposit.tx_hash.clone(),
+            block_number: deposit.block_number,
+        });
+    }
+
+    if let Some(ref approval) = record.approval {
+        let destination_chain_id =
+            network.chain_id_to_bridge_i32(approval.recorded_chain) as u8;
+        events.push(BridgeNotifyEvent::Approval {
+            source_chain_id,
+            destination_chain_id,
+            nonce: record.key.nonce,
+            token_id: record.deposit.as_ref().map(|d| d.token_id).unwrap_or(0),
+            amount: record.deposit.as_ref().map(|d| d.amount).unwrap_or(0),
+            recipient_address: record
+                .deposit
+                .as_ref()
+                .map(|d| d.recipient_address.clone())
+                .unwrap_or_default(),
+            tx_hash: approval.tx_hash.clone(),
+            block_number: approval.block_number,
+        });
+    }
+
+    if let Some(ref claim) = record.claim {
+        let destination_chain_id = record
+            .deposit
+            .as_ref()
+            .map(|d| network.chain_id_to_bridge_i32(d.destination_chain) as u8)
+            .unwrap_or(0);
+        events.push(BridgeNotifyEvent::Claim {
+            source_chain_id,
+            destination_chain_id,
+            nonce: record.key.nonce,
+            token_id: record.deposit.as_ref().map(|d| d.token_id).unwrap_or(0),
+            amount: record.deposit.as_ref().map(|d| d.amount).unwrap_or(0),
+            recipient_address: claim.claimer_address.clone(),
+            tx_hash: claim.tx_hash.clone(),
+            block_number: claim.block_number,
+        });
+    }
+
+    events
 }
 
 #[cfg(test)]

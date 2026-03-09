@@ -47,7 +47,7 @@ use crate::caught_up::ChainCaughtUpTracker;
 use crate::indexer_progress::{IndexerProgressStore, ETH_INDEXER_TASK_NAME};
 use crate::monitor::reorg_handler::{EthBridgeReorgHandler, EthReorgHandlerConfig};
 use crate::network::NetworkType;
-use crate::telegram::{BridgeNotifyEvent, NotifyChain, SharedTelegramNotifier};
+use crate::telegram::{create_notify_events_from_record, BridgeNotifyEvent, NotifyChain, SharedTelegramNotifier};
 use anyhow::{anyhow, Context, Result};
 use diesel_async::RunQueryDsl;
 use ethers::types::Address as EthAddress;
@@ -791,6 +791,15 @@ async fn finalize_and_persist_records_for_eth(
     // Step 3: Handle result
     match db_result {
         Ok(()) => {
+            // Send telegram notifications for newly finalized records
+            if let Some(ref tg) = telegram {
+                for record in &records {
+                    for event in create_notify_events_from_record(record, network) {
+                        let _ = tg.notify_finalized(NotifyChain::Eth, &event).await;
+                    }
+                }
+            }
+
             // Step 4: Mark deposits as finalized BEFORE archiving
             // This is required for archive_finalized_deposits to work correctly
             transfer_tracker.mark_finalized(&keys, "deposit").await;

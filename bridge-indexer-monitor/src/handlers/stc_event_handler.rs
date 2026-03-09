@@ -39,7 +39,7 @@ use crate::metrics::BridgeIndexerMetrics;
 use crate::network::NetworkType;
 use crate::security_monitor::SharedSecurityMonitor;
 use crate::struct_tag;
-use crate::telegram::{BridgeNotifyEvent, NotifyChain, SharedTelegramNotifier};
+use crate::telegram::{create_notify_events_from_record, BridgeNotifyEvent, NotifyChain, SharedTelegramNotifier};
 use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::RunQueryDsl;
 use move_core_types::account_address::AccountAddress;
@@ -751,6 +751,15 @@ impl StcEventHandler {
         // Step 3: Handle result
         match db_result {
             Ok(()) => {
+                // Send telegram notifications for newly finalized records
+                if let Some(ref tg) = self.telegram {
+                    for record in &records {
+                        for event in create_notify_events_from_record(record, self.network) {
+                            let _ = tg.notify_finalized(NotifyChain::Starcoin, &event).await;
+                        }
+                    }
+                }
+
                 // Step 4: Mark deposits as finalized BEFORE archiving
                 // This is required for archive_finalized_deposits to work correctly
                 self.transfer_tracker.mark_finalized(&keys, "deposit").await;
