@@ -87,11 +87,12 @@ fn substitute_env_vars(content: &str) -> Result<String> {
         if let Ok(var_value) = std::env::var(var_name) {
             result = result.replace(full_match, &var_value);
         } else {
-            // Keep the placeholder if env var is not set
+            // Replace with empty string so is_configured() correctly returns false
             tracing::warn!(
-                "Environment variable {} not found, keeping placeholder",
+                "Environment variable {} not found, replacing with empty string",
                 var_name
             );
+            result = result.replace(full_match, "");
         }
     }
 
