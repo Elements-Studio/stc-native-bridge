@@ -167,14 +167,16 @@ pub async fn start_unified_eth_indexer(
         .await;
     info!("[ETH] Auto-detected start block: {}", start_block);
 
-    // Create EthClient - always use finalized mode for proper finality tracking
+    // Create EthClient - auto-detect finality mode based on chain ID:
+    // - Local networks (chain_id 31337): BlockCounting mode (latest - N)
+    // - Real networks (Sepolia, Mainnet): Native finality mode (eth_getBlockByNumber("finalized"))
     let eth_client = Arc::new(
         EthClient::new_with_options(
             &config.eth_rpc_url,
             HashSet::from([bridge_address]),
             bridge_metrics.clone(),
             None,
-            Some(true), // Always use finalized block tag
+            None, // Auto-detect: local → BlockCounting, real networks → Native finality
         )
         .await
         .map_err(|e| anyhow!("Failed to create ETH client: {:?}", e))?,
