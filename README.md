@@ -33,7 +33,7 @@ The bridge uses a validator committee with BFT consensus and signature aggregati
 ## Project Structure
 
 ```
-stc-native-bridge/
+native-bridge-services/
 ├── bridge/                    # Core validator node (binary: starcoin-bridge)
 ├── bridge-cli/                # CLI tools (binary: starcoin-bridge-cli) ← Main binary
 ├── bridge-indexer-monitor/    # Event indexer & security monitor
